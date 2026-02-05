@@ -1,0 +1,30 @@
+graph LR
+    subgraph "Input Sources"
+        Mic[麥克風]
+        Sys[系統音效]
+    end
+
+    subgraph "Modern Audio System (Rust)"
+        Mixer[Audio Mixer]
+        Process[DSP Processing]
+        
+        subgraph "DSP Chain"
+            Norm[EBU R128 Normalizer]
+            Duck[Ducking Controller]
+            Limit[True Peak Limiter]
+        end
+        
+        Sync[Synchronizer]
+        Encoder[Recorder/Encoder]
+    end
+
+    File[WAV/MP3 File]
+    ASR[Whisper Stream]
+
+    Mic & Sys --> Mixer
+    Mixer --> Norm
+    Norm --> Duck
+    Duck --> Limit
+    Limit --> Sync
+    Sync --> Encoder --> File
+    Sync --> ASR

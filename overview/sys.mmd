@@ -1,0 +1,48 @@
+graph TD
+    subgraph "Frontend (Frontend Process)"
+        UI["Next.js / React UI"]
+        IPC_Client["Tauri Invoke / Events"]
+    end
+
+    subgraph "Rust Main (Main Process)"
+        Entry["main.rs"] -->|Call| Run["lib.rs :: run"]
+        
+        subgraph "Managers"
+            Tray["System Tray"]
+            Notif["Notification Mgr"]
+            DB_Mgr["Database Mgr"]
+            ModelMgr["Model Manager"]
+        end
+        
+        subgraph "Command Interface"
+            CMD["lib.rs :: Commands"]
+            Note1["API Gateway"]
+        end
+
+        subgraph "Audio Core"
+            Legacy["Audio 1.0 (Current)"]
+            Modern["Audio 2.0 (New Arch)"]
+            Note2["Audio Pipeline"]
+        end
+
+        subgraph "AI Integration"
+            Whisper["Whisper Engine"]
+            Parakeet["Parakeet Engine"]
+            Ollama["Ollama Integration"]
+        end
+    end
+
+    subgraph "External / Sidecars"
+        LlamaHelper("llama-helper Binary")
+        SQLite[("SQLite DB")]
+        FileSystem["File System"]
+    end
+
+    %% Connections
+    UI <-->|IPC JSON| CMD
+    Run --> Tray & Notif & DB_Mgr & ModelMgr
+    CMD --> Legacy & Modern
+    CMD --> Whisper & Parakeet & DB_Mgr
+    Legacy & Modern --> FileSystem
+    Whisper & Ollama -.->|Spawn/HTTP| LlamaHelper
+    CMD --> SQLite

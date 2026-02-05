@@ -1,0 +1,50 @@
+%%  {init: {'theme':'base'}}%%
+graph TD
+    %% 定義樣式（參考你覺得好看的那份風格）
+    classDef frontend fill:#f5f7fa,stroke:#5f6f82,stroke-width:1.5px,color:#1f1f1f;
+    classDef core fill:#faf8f5,stroke:#6b6b6b,stroke-width:1.5px,color:#1f1f1f;
+    classDef ai fill:#f6f2f8,stroke:#6a5f78,stroke-width:1.5px,color:#1f1f1f;
+    classDef data fill:#f4f4f4,stroke:#7a7a7a,stroke-width:1.5px,stroke-dasharray: 4 4,color:#1f1f1f;
+
+    User(("使用者 / 麥克風"))
+
+    subgraph "前端展示層 (Frontend / UI)"
+        UI["Next.js + React 介面"]:::frontend
+        Store["State Management"]:::frontend
+    end
+
+    subgraph "核心應用層 (Rust / Host)"
+        TauriMain["Tauri Main Process"]:::core
+        AudioMgr["Audio Capture (cpal)"]:::core
+        DB_Driver["Database Driver"]:::core
+    end
+
+    subgraph "AI 運算層 (Sidecar / Service)"
+        PyEngine["Python Core Service"]:::ai
+        Whisper["Whisper ASR Model"]:::ai
+        LLM["Ollama / Summarizer"]:::ai
+    end
+
+    subgraph "資料持久層 (Local Storage)"
+        SQLite[("SQLite DB")]:::data
+        Files["錄音檔 & Logs"]:::data
+    end
+
+    %% 數據流向
+    User -->|"音訊輸入 (PCM)"| AudioMgr
+    User -->|"操作指令"| UI
+    
+    %% 前後端通訊
+    UI <-->|"Tauri Command / Event (IPC)"| TauriMain
+    
+    %% 核心邏輯
+    AudioMgr -->|"Raw Audio Data"| TauriMain
+    TauriMain <-->|"STDIN / STDOUT (RPC)"| PyEngine
+    TauriMain <-->|"SQLx / ORM"| SQLite
+    TauriMain -->|"寫入檔案"| Files
+
+    %% AI 處理
+    PyEngine -->|"音訊"| Whisper
+    Whisper -->|"文字 Transcript"| PyEngine
+    PyEngine -->|"Context"| LLM
+    LLM -->|"會議摘要"| PyEngine
