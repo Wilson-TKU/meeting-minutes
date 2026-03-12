@@ -1,4 +1,6 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.staticfiles import StaticFiles
+import os
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -49,6 +51,12 @@ app.add_middleware(
     allow_headers=["*"],     # Allow all headers
     max_age=3600,            # Cache preflight requests for 1 hour
 )
+
+# Create and mount the static directory for meeting images
+images_dir = "meeting_images"
+if not os.path.exists(images_dir):
+    os.makedirs(images_dir)
+app.mount("/images", StaticFiles(directory=images_dir), name="images")
 
 # Global database manager instance for meeting management endpoints
 db = DatabaseManager()
@@ -299,6 +307,35 @@ async def process_transcript_background(process_id: str, transcript: TranscriptR
         # Update database with meeting name using meeting_id
         if final_summary["MeetingName"]:
             await processor.db.update_meeting_name(transcript.meeting_id, final_summary["MeetingName"])
+
+        # --- START: Gemini-generated code to attach images to summary ---
+        image_section = {"title": "Attached Images", "blocks": []}
+        # Construct path relative to the app's root directory
+        meeting_images_dir = os.path.join("meeting_images", transcript.meeting_id)
+        
+        logger.info(f"Checking for images in: {meeting_images_dir}")
+        if os.path.isdir(meeting_images_dir):
+            try:
+                image_files = sorted([f for f in os.listdir(meeting_images_dir) if os.path.isfile(os.path.join(meeting_images_dir, f))])
+                
+                for filename in image_files:
+                    # URL is constructed based on the static path mounted in FastAPI
+                    image_url = f"http://localhost:5167/images/{transcript.meeting_id}/{filename}"
+                    image_markdown = f"![{filename}]({image_url})"
+                    image_section["blocks"].append({"text": image_markdown})
+
+                if image_section["blocks"]:
+                    logger.info(f"Found and attached {len(image_section['blocks'])} images.")
+                    # Add the new section to the final summary JSON
+                    final_summary["AttachedImages"] = image_section
+                    # Also append to the MeetingNotes sections list to ensure it's rendered
+                    final_summary["MeetingNotes"]["sections"].append(image_section)
+
+            except Exception as e:
+                logger.error(f"Error processing images for meeting {transcript.meeting_id}: {e}")
+        else:
+            logger.info(f"No image directory found for meeting {transcript.meeting_id} at {meeting_images_dir}.")
+        # --- END: Gemini-generated code ---
 
         # Save final result
         if all_json_data:
