@@ -312,7 +312,12 @@ async def process_transcript_background(process_id: str, transcript: TranscriptR
         image_section = {"title": "Attached Images", "blocks": []}
         # Construct path relative to the app's root directory
         meeting_images_dir = os.path.join("meeting_images", transcript.meeting_id)
-        
+
+        # Check if directory exists, if not check for meeting- prefix (common manual folder naming)
+        if not os.path.isdir(meeting_images_dir):
+            if os.path.isdir(os.path.join("meeting_images", f"meeting-{transcript.meeting_id}")):
+                meeting_images_dir = os.path.join("meeting_images", f"meeting-{transcript.meeting_id}")
+
         logger.info(f"Checking for images in: {meeting_images_dir}")
         if os.path.isdir(meeting_images_dir):
             try:
@@ -320,7 +325,9 @@ async def process_transcript_background(process_id: str, transcript: TranscriptR
                 
                 for filename in image_files:
                     # URL is constructed based on the static path mounted in FastAPI
-                    image_url = f"http://localhost:5167/images/{transcript.meeting_id}/{filename}"
+                    # Use the actual directory name for the URL to ensure it matches the physical path
+                    dir_name = os.path.basename(meeting_images_dir)
+                    image_url = f"http://localhost:5167/images/{dir_name}/{filename}"
                     image_markdown = f"![{filename}]({image_url})"
                     image_section["blocks"].append({"text": image_markdown})
 
@@ -342,7 +349,7 @@ async def process_transcript_background(process_id: str, transcript: TranscriptR
             await processor.db.update_process(process_id, status="completed", result=json.dumps(final_summary))
             logger.info(f"Background processing completed for process_id: {process_id}")
         else:
-            error_msg = "Summary generation failed: No chunks were processed successfully. Check logs for specific errors."
+            error_msg = "Summary generation failed. Possible causes: 1) Input text too short 2) Ollama not reachable 3) Model not installed."
             await processor.db.update_process(process_id, status="failed", error=error_msg)
             logger.error(f"Background processing failed for process_id: {process_id} - {error_msg}")
 
