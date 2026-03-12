@@ -13,20 +13,14 @@ version: '3.8'
 services:
   # Original whisper-server service (Windows/Linux compatibility)
   whisper-server:
-    build:
-      context: .
-      dockerfile: ${DOCKERFILE:-Dockerfile.server-cpu}
-      args:
-        CUDA_VERSION: ${CUDA_VERSION:-12.3.1}
-        UBUNTU_VERSION: ${UBUNTU_VERSION:-22.04}
-    image: whisper-server:${TAG:-cpu}
+    image: ghcr.io/ggml-org/whisper.cpp:main-cuda-7dd2997a01242e7eda5b1e557142d5b71c943edf
     container_name: whisper-server
     restart: unless-stopped
-    
+
     # Port mapping
     ports:
       - "${WHISPER_PORT:-8178}:8178"
-    
+
     # Environment variables
     environment:
       - WHISPER_HOST=0.0.0.0
@@ -38,7 +32,8 @@ services:
       - WHISPER_TRANSLATE=${WHISPER_TRANSLATE:-false}
       - WHISPER_DIARIZE=${WHISPER_DIARIZE:-false}
       - WHISPER_PRINT_PROGRESS=${WHISPER_PRINT_PROGRESS:-true}
-    
+      - LD_LIBRARY_PATH=
+
     # Volume mounts
     volumes:
       # Model storage - persistent across container restarts
@@ -49,7 +44,10 @@ services:
       - ${LOCAL_MODELS_DIR:-./models}:/app/local_models:ro
       # Optional: mount custom configuration
       - ${CONFIG_DIR:-./config}:/app/config:ro
-    
+
+
+    command: "whisper-server --host 0.0.0.0 --port 8178 -m /app/$$WHISPER_MODEL"
+
     # Exclude from macOS profile
     profiles:
       - default
@@ -62,11 +60,11 @@ services:
     image: whisper-server:macos
     container_name: whisper-server
     restart: unless-stopped
-    
+
     # Port mapping
     ports:
       - "${WHISPER_PORT:-8178}:8178"
-    
+
     # Environment variables (GPU disabled for macOS)
     environment:
       - WHISPER_HOST=0.0.0.0
@@ -79,7 +77,7 @@ services:
       - WHISPER_DIARIZE=${WHISPER_DIARIZE:-false}
       - WHISPER_PRINT_PROGRESS=${WHISPER_PRINT_PROGRESS:-true}
       - WHISPER_PLATFORM=macos
-    
+
     # Volume mounts for macOS (using actual models directory)
     volumes:
       # Map to actual model location on macOS
@@ -88,11 +86,11 @@ services:
       - whisper_uploads:/app/uploads
       # Optional: mount custom configuration
       - ${CONFIG_DIR:-./config}:/app/config:ro
-    
+
     # macOS profile only
     profiles:
       - macos
-    
+
     # GPU support (uncomment for GPU version)
     # deploy:
     #   resources:
@@ -101,7 +99,7 @@ services:
     #         - driver: nvidia
     #           count: all
     #           capabilities: [gpu]
-    
+
     # Health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8178/"]
@@ -109,11 +107,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    
+
     # Resource limits (optional)
     mem_limit: 4g
     mem_reservation: 1g
-    
+
     # Logging configuration
     logging:
       driver: "json-file"
@@ -136,15 +134,8 @@ services:
           echo '📦 Downloading model: \${MODEL_NAME}...'
           echo '📋 This may take a few minutes depending on model size and connection speed'
           # Create temp file to avoid partial downloads
-          curl -L -f --progress-bar \
-            --connect-timeout 30 \
-            --max-time 3600 \
-            --retry 3 \
-            --retry-delay 5 \
-            --retry-connrefused \
-            -o /models/ggml-\${MODEL_NAME}.bin.tmp \
-            https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-\${MODEL_NAME}.bin
-          
+          curl -L -f --progress-bar --connect-timeout 30 --max-time 3600 --retry 3 --retry-delay 5 --retry-connrefused -o /models/ggml-\${MODEL_NAME}.bin.tmp https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-\${MODEL_NAME}.bin
+
           # Verify download completed successfully  
           if [ -s /models/ggml-\${MODEL_NAME}.bin.tmp ]; then
             mv /models/ggml-\${MODEL_NAME}.bin.tmp /models/ggml-\${MODEL_NAME}.bin
@@ -177,22 +168,22 @@ services:
     image: meetily-backend:latest
     container_name: meetily-backend
     restart: unless-stopped
-    
+
     # Port mapping
     ports:
       - "${APP_PORT:-5167}:5167"
-    
+
     # Environment variables
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
       - DATABASE_PATH=/app/data/meeting_minutes.db
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
-    
+
     # Add extra host for Docker Desktop compatibility
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    
+
     # Volume mounts
     volumes:
       # Local database directory (created by setup-db.sh)
@@ -201,7 +192,7 @@ services:
       - meeting_app_logs:/app/logs
       # Optional: mount local .env file
       - ${LOCAL_ENV_FILE:-./app/.env}:/app/.env:ro
-    
+
     # Health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5167/get-meetings"]
@@ -209,23 +200,23 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    
+
     # Resource limits (optional)
     mem_limit: 2g
     mem_reservation: 512m
-    
+
     # Logging configuration
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-    
+
     # Depends on whisper server for transcription
-    depends_on:
-      whisper-server:
-        condition: service_healthy
-    
+    # depends_on:
+    #   whisper-server:
+    #     condition: service_healthy
+
     # Exclude from macOS profile
     profiles:
       - default
@@ -238,22 +229,22 @@ services:
     image: meetily-backend:latest
     container_name: meetily-backend
     restart: unless-stopped
-    
+
     # Port mapping
     ports:
       - "${APP_PORT:-5167}:5167"
-    
+
     # Environment variables
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
       - DATABASE_PATH=/app/data/meeting_minutes.db
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
-    
+
     # Add extra host for Docker Desktop compatibility
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    
+
     # Volume mounts
     volumes:
       # Local database directory (created by setup-db.sh)
@@ -262,7 +253,7 @@ services:
       - meeting_app_logs:/app/logs
       # Optional: mount local .env file
       - ${LOCAL_ENV_FILE:-./app/.env}:/app/.env:ro
-    
+
     # Health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5167/get-meetings"]
@@ -270,23 +261,23 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    
+
     # Resource limits (optional)
     mem_limit: 2g
     mem_reservation: 512m
-    
+
     # Logging configuration
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-    
+
     # Depends on macOS whisper server for transcription
     depends_on:
       whisper-server-macos:
         condition: service_healthy
-    
+
     # macOS profile only
     profiles:
       - macos
@@ -318,4 +309,4 @@ volumes:
 # Networks (optional)
 networks:
   default:
-    name: whisper-network
+    name: whisper-network 

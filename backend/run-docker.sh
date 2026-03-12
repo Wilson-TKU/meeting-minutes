@@ -43,10 +43,10 @@ log_error() {
 
 # Function to run docker compose with the correct command
 docker_compose() {
-    if command -v docker-compose >/dev/null 2>&1; then
-        docker-compose "$@"
-    elif docker compose version >/dev/null 2>&1; then
+    if docker compose version >/dev/null 2>&1; then
         docker compose "$@"
+    elif command -v docker-compose >/dev/null 2>&1; then
+        docker-compose "$@"
     else
         log_error "Neither 'docker-compose' nor 'docker compose' command found"
         return 1
